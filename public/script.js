@@ -9,6 +9,8 @@ class MDProcessor {
     this.inList = false;
     this.currentList;
     this.currentListType;
+    this.currentIndentLength = 0;
+    this.currentSubList = 0;
 
     // List information
     this.listMatch = new RegExp(/^([0-9]+\.|(-|\+|\*))/);
@@ -20,6 +22,8 @@ class MDProcessor {
     this.inList = false;
     this.currentList = null;
     this.currentListType = null;
+    this.currentIndentLength = 0;
+    this.currentSubList = 0;
   };
 
   updateLines(lines) {
@@ -72,15 +76,68 @@ class MDProcessor {
 
   parseList(line) {
     let nextListType = this.orderedMatch.exec(line.trim()) ? this.O_LIST : this.UO_LIST;
-    if (!this.inList || nextListType !== this.currentListType) {
-      // Create an ordered list
+
+    if (line.startsWith('  ') && this.inList) {
+      // We are attempting to create a sub list
+      let indents = 0;
+      const indentRegex = new RegExp(/  /g);
+
+      // Find how many indentations we have currently
+      while (indentRegex.exec(line)) {
+        indents += 1;
+      }
+
+      if (this.currentIndentLength < indents) {
+        // We are indenting more than before, create a sub list
+        this.currentSubList += 1;
+
+        // Hold access to current list for reference from child list
+        const parentList = this.currentList;
+
+        // Get previously created element
+        const listItem = parentList.children[parentList.children.length - 1]
+        listItem.children = [];
+
+        // Create a new list to append to sublist
+        this.currentList = nextListType === this.O_LIST ? this.getOrderedList() : this.getUnorderedList();
+
+        // Add sub list to children of the last list item
+        listItem.children.push(this.currentList);
+
+        // Set the parent of the current list to be able to move up levels
+        this.currentList.parentList = parentList;
+      } else if (this.currentIndentLength > indents) {
+        // TODO: Handle going back multiple lists
+        this.currentSubList -= 1;
+        const childList = this.currentList;
+        this.currentList = childList.parentList;
+      }
+
+      this.currentList.children.push(this.parseListItem(line.trim()));
+      this.currentIndentLength = indents;
+    } else if (this.inList && this.currentSubList > 0) {
+      // We have moved back to the base list, loop until root parent
+      let parentList = this.currentList.parentList;
+      while (parentList.parentList) {
+        parentList = parentList.parentList;
+      }
+
+      this.currentList = parentList;
+
+      // Reset indentation
+      this.currentIndentLength = 0;
+      this.currentSubList = 0;
+
+      this.currentList.children.push(this.parseListItem(line.trim()))
+    } else if (!this.inList || nextListType !== this.currentListType) {
       this.currentList = nextListType === this.O_LIST ? this.getOrderedList() : this.getUnorderedList();
       this.currentListType = nextListType;
       this.inList = true;
       this.elements.push(this.currentList);
+      this.currentList.children.push(this.parseListItem(line.trim()));
+    } else {
+      this.currentList.children.push(this.parseListItem(line.trim()));
     }
-
-    this.currentList.children.push(this.parseListItem(line));
   };
 
   getOrderedList() {
@@ -94,6 +151,7 @@ class MDProcessor {
   parse() {
     // Reset elements
     this.elements = [];
+    this.resetAllSpecialElements();
 
     this.lines.forEach((line) => {
       if (this.listMatch.exec(line.trim())) {
@@ -162,9 +220,10 @@ class MDConverter {
   };
 }
 
+var processor = new MDProcessor([]);
+var converter = new MDConverter([]);
+
 window.onload = function() {
-    var converter = new MDConverter([]);
-    var processor = new MDProcessor([]);
     var pad = document.getElementById('pad');
     var markdownArea = document.getElementById('markdown');
 
