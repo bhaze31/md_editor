@@ -16,11 +16,26 @@ class MDConverter {
 
   getHtmlTextElement(text) {
     const trimmed = text.trim();
+    const imageMatch = new RegExp(/^!\[.+\]\(.+\)$/);
+
     if (trimmed.startsWith('#')) {
       const headerRegex = new RegExp('^#+');
       const headerLength = headerRegex.exec(trimmed)[0].length;
       const headerText = trimmed.substring(headerLength).trim();
       return this.getHeader(headerText, headerLength);
+    } else if (imageMatch.exec(trimmed)) {
+      const img = document.createElement('img');
+      const imgInfo = imageMatch.exec(trimmed)[0];
+      const altMatch = new RegExp(/!\[.+\]/);
+      const descMatch = new RegExp(/\(.+\)/);
+      const altInfo = altMatch.exec(imgInfo)[0].replace('![', '').replace(']', '');
+      const descInfo = descMatch.exec(imgInfo)[0].replace('(', '').replace(')', '').split(' ');
+      const imgSrc = descInfo[0];
+      const titleInfo = descInfo.slice(1).join(' ');
+      img.alt = altInfo;
+      img.src = imgSrc;
+      img.title = titleInfo;
+      return img;
     } else {
       // Assume it is a paragraph
       return this.getParagraph(trimmed);
