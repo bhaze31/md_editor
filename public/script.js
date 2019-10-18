@@ -9,12 +9,22 @@ class MDProcessor {
     this.inList = false;
     this.currentList;
     this.currentListType;
-    this.currentIndentLength = 0;
+    this.currentListIndentLength = 0;
     this.currentSubList = 0;
 
     // List information
     this.listMatch = new RegExp(/^([0-9]+\.|(-|\+|\*))/);
     this.orderedMatch = new RegExp(/^[0-9]+\./);
+
+    // Blockquote elements
+    this.inBlockquote = false;
+    this.currentBlockquote;
+    this.currentBlockquoteIndentLength = 0;
+    this.currentSubQuote = 0;
+    this.shouldAppendParagraph = false;
+
+    // Blockquote information
+    this.blockMatch = new RegExp(/^>+/);
   };
 
   resetAllSpecialElements() {
@@ -22,8 +32,15 @@ class MDProcessor {
     this.inList = false;
     this.currentList = null;
     this.currentListType = null;
-    this.currentIndentLength = 0;
+    this.currentListIndentLength = 0;
     this.currentSubList = 0;
+
+    // Blockquote elements
+    this.inBlockquote = false;
+    this.currentBlockquote = null;
+    this.currentBlockquoteIndentLength = 0;
+    this.currentSubQuote = 0;
+    this.shouldAppendParagraph = false;
   };
 
   updateLines(lines) {
@@ -87,7 +104,7 @@ class MDProcessor {
         indents += 1;
       }
 
-      if (this.currentIndentLength < indents) {
+      if (this.currentListIndentLength < indents) {
         // We are indenting more than before, create a sub list
         this.currentSubList += 1;
 
@@ -106,7 +123,7 @@ class MDProcessor {
 
         // Set the parent of the current list to be able to move up levels
         this.currentList.parentList = parentList;
-      } else if (this.currentIndentLength > indents) {
+      } else if (this.currentListIndentLength > indents) {
         // TODO: Handle going back multiple lists
         this.currentSubList -= 1;
         const childList = this.currentList;
@@ -114,7 +131,7 @@ class MDProcessor {
       }
 
       this.currentList.children.push(this.parseListItem(line.trim()));
-      this.currentIndentLength = indents;
+      this.currentListIndentLength = indents;
     } else if (this.inList && this.currentSubList > 0) {
       // We have moved back to the base list, loop until root parent
       let parentList = this.currentList.parentList;
@@ -125,7 +142,7 @@ class MDProcessor {
       this.currentList = parentList;
 
       // Reset indentation
-      this.currentIndentLength = 0;
+      this.currentListIndentLength = 0;
       this.currentSubList = 0;
 
       this.currentList.children.push(this.parseListItem(line.trim()))
@@ -140,12 +157,62 @@ class MDProcessor {
     }
   };
 
+  parseBlockquote(line) {
+    const quoteRegex = new RegExp(/^>/g);
+    let quoteIndent = 0;
+    while (quoteRegex.exec(line)) {
+      quoteIndent += 1;
+    }
+
+    if (this.inBlockquote && this.currentBlockquoteIndentLength < quoteIndent) {
+      // Create a new blockquote within the current one
+    } else if (this.inBlockquote && this.currentBlockquoteIndentLength > quoteIndent) {
+      // Go back to a previous blockquote
+    } else if (this.inBlockquote) {
+      // In current blockquote, check if we should append to the current text
+      if (line.replace(this.blockMatch, '').trim() === '') {
+        // We are adding another paragraph element
+        this.shouldAppendParagraph = true;
+      } else {
+        // Append to the current quote
+        if (this.shouldAppendParagraph) {
+          // We have a blank line, create a new paragraph in this blockquote level
+          // Reset appending paragraph
+          this.shouldAppendParagraph = false;
+
+          // Create a new paragraph and append to the current children
+          const paragraph = this.parseParagraph(line.replace(this.blockMatch, '').trim());
+          this.currentBlockquote.children.push(paragraph);
+        } else {
+          const paragraph = this.currentBlockquote.children[this.currentBlockquote.children.length - 1];
+          paragraph.text = paragraph.text + ` ${line.replace(this.blockMatch, '').trim()}`;
+        }
+      }
+    } else {
+      // Create a blockquote element
+      const blockquote = this.getBlockquote();
+
+      // Create the paragraph element
+      const paragraph = this.parseParagraph(line.replace(this.blockMatch, '').trim());
+      blockquote.children.push(paragraph);
+
+      this.inBlockquote = true;
+      this.currentBlockquote = blockquote;
+      this.currentBlockquoteIndentLength = quoteIndent;
+      this.elements.push(blockquote);
+    }
+  };
+
   getOrderedList() {
     return { element: 'ol', children: [] };
   };
 
   getUnorderedList() {
     return { element: 'ul', children: [] };
+  };
+
+  getBlockquote() {
+    return { element: 'blockquote', children: [] };
   };
 
   parse() {
@@ -156,6 +223,8 @@ class MDProcessor {
     this.lines.forEach((line) => {
       if (this.listMatch.exec(line.trim())) {
         this.parseList(line);
+      } else if (this.blockMatch.exec(line.trim())) {
+        this.parseBlockquote(line.trim());
       } else if (line.trim() != '') {
         // Else we are in a non-empty text element
         this.resetAllSpecialElements();
@@ -196,6 +265,7 @@ class MDConverter {
       case 'img':
         this.setImageElements(element, item);
         break;
+      case 'blockquote':
       case 'ul':
       case 'ol':
         break;
