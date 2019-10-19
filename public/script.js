@@ -178,6 +178,10 @@ class MDProcessor {
       let currentQuote = this.currentBlockquote;
       let quoteDifference = this.currentBlockquoteIndentLength - quoteIndent;
       while (quoteDifference > 0) {
+        if (!currentQuote.parentQuote) {
+          // Difference was greater than number of steps back, set difference to 0
+          break;
+        }
         currentQuote = currentQuote.parentQuote;
         quoteDifference--;
       }
