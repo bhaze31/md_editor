@@ -25,6 +25,12 @@ class MDProcessor {
 
     // Blockquote information
     this.blockMatch = new RegExp(/^>+/);
+
+    // Horizontal information
+    this.horizontalMatch = new RegExp(/^(\*{3,}|-{3,}|_{3,})$/);
+
+    // Break information
+    this.breakMatch = new RegExp(/ {2,}$/);
   };
 
   resetAllSpecialElements() {
@@ -158,6 +164,8 @@ class MDProcessor {
   };
 
   parseBlockquote(line) {
+    // TODO: Assign quote indent to be able to properly indent with mismatched
+    // blockquote lengths
     const quoteRegex = new RegExp(/^>+/g);
     let quoteIndent = quoteRegex.exec(line)[0].length;
 
@@ -239,13 +247,23 @@ class MDProcessor {
     return { element: 'blockquote', children: [] };
   };
 
+  addHorizontalRule() {
+    this.elements.push({ element: 'hr' });
+  };
+
+  addBreak() {
+    this.elements.push({ element: 'br' });
+  };
+
   parse() {
     // Reset elements
     this.elements = [];
     this.resetAllSpecialElements();
 
     this.lines.forEach((line) => {
-      if (this.listMatch.exec(line.trim())) {
+      if (this.horizontalMatch.exec(line.trim())) {
+        this.addHorizontalRule();
+      } else if (this.listMatch.exec(line.trim())) {
         this.parseList(line);
       } else if (this.blockMatch.exec(line.trim())) {
         this.parseBlockquote(line.trim());
@@ -256,6 +274,10 @@ class MDProcessor {
         this.elements.push(this.parseTextElement(line));
       } else {
         this.resetAllSpecialElements();
+      }
+
+      if (this.breakMatch.exec(line)) {
+        this.addBreak();
       }
     })
 
@@ -292,6 +314,8 @@ class MDConverter {
       case 'blockquote':
       case 'ul':
       case 'ol':
+      case 'hr':
+      case 'br':
         break;
       default:
         this.setTextElements(element, item);
