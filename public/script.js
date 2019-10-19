@@ -25,6 +25,9 @@ class MDProcessor {
 
     // Blockquote information
     this.blockMatch = new RegExp(/^>+/);
+
+    // Horizontal information
+    this.horizontalMatch = new RegExp(/^(\*{3,}|-{3,}|_{3,})$/);
   };
 
   resetAllSpecialElements() {
@@ -158,6 +161,8 @@ class MDProcessor {
   };
 
   parseBlockquote(line) {
+    // TODO: Assign quote indent to be able to properly indent with mismatched
+    // blockquote lengths
     const quoteRegex = new RegExp(/^>+/g);
     let quoteIndent = quoteRegex.exec(line)[0].length;
 
@@ -239,13 +244,19 @@ class MDProcessor {
     return { element: 'blockquote', children: [] };
   };
 
+  addHorizontalRule() {
+    this.elements.push({ element: 'hr', children: [] });
+  };
+
   parse() {
     // Reset elements
     this.elements = [];
     this.resetAllSpecialElements();
 
     this.lines.forEach((line) => {
-      if (this.listMatch.exec(line.trim())) {
+      if (this.horizontalMatch.exec(line.trim())) {
+        this.addHorizontalRule();
+      } else if (this.listMatch.exec(line.trim())) {
         this.parseList(line);
       } else if (this.blockMatch.exec(line.trim())) {
         this.parseBlockquote(line.trim());
@@ -292,6 +303,7 @@ class MDConverter {
       case 'blockquote':
       case 'ul':
       case 'ol':
+      case 'hr':
         break;
       default:
         this.setTextElements(element, item);
