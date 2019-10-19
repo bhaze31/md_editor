@@ -158,16 +158,40 @@ class MDProcessor {
   };
 
   parseBlockquote(line) {
-    const quoteRegex = new RegExp(/^>/g);
-    let quoteIndent = 0;
-    while (quoteRegex.exec(line)) {
-      quoteIndent += 1;
-    }
+    const quoteRegex = new RegExp(/^>+/g);
+    let quoteIndent = quoteRegex.exec(line)[0].length;
 
     if (this.inBlockquote && this.currentBlockquoteIndentLength < quoteIndent) {
       // Create a new blockquote within the current one
+      const parentQuote = this.currentBlockquote;
+      this.currentBlockquote = this.getBlockquote();
+
+      parentQuote.children.push(this.currentBlockquote);
+      this.currentBlockquote.parentQuote = parentQuote;
+
+      const paragraph = this.parseParagraph(line.replace(this.blockMatch, '').trim());
+      this.currentBlockquote.children.push(paragraph);
+
+      this.currentBlockquoteIndentLength = quoteIndent;
     } else if (this.inBlockquote && this.currentBlockquoteIndentLength > quoteIndent) {
       // Go back to a previous blockquote
+      let currentQuote = this.currentBlockquote;
+      let quoteDifference = this.currentBlockquoteIndentLength - quoteIndent;
+      while (quoteDifference > 0) {
+        if (!currentQuote.parentQuote) {
+          // Difference was greater than number of steps back, set difference to 0
+          break;
+        }
+        currentQuote = currentQuote.parentQuote;
+        quoteDifference--;
+      }
+
+      this.currentBlockquote = currentQuote;
+
+      const paragraph = this.parseParagraph(line.replace(this.blockMatch, '').trim());
+      this.currentBlockquote.children.push(paragraph);
+
+      this.currentBlockquoteIndentLength = quoteIndent;
     } else if (this.inBlockquote) {
       // In current blockquote, check if we should append to the current text
       if (line.replace(this.blockMatch, '').trim() === '') {
