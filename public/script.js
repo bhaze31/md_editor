@@ -28,6 +28,9 @@ class MDProcessor {
 
     // Horizontal information
     this.horizontalMatch = new RegExp(/^(\*{3,}|-{3,}|_{3,})$/);
+
+    // Break information
+    this.breakMatch = new RegExp(/ {2,}$/);
   };
 
   resetAllSpecialElements() {
@@ -245,7 +248,11 @@ class MDProcessor {
   };
 
   addHorizontalRule() {
-    this.elements.push({ element: 'hr', children: [] });
+    this.elements.push({ element: 'hr' });
+  };
+
+  addBreak() {
+    this.elements.push({ element: 'br' });
   };
 
   parse() {
@@ -267,6 +274,10 @@ class MDProcessor {
         this.elements.push(this.parseTextElement(line));
       } else {
         this.resetAllSpecialElements();
+      }
+
+      if (this.breakMatch.exec(line)) {
+        this.addBreak();
       }
     })
 
@@ -304,6 +315,7 @@ class MDConverter {
       case 'ul':
       case 'ol':
       case 'hr':
+      case 'br':
         break;
       default:
         this.setTextElements(element, item);
