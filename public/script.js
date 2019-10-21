@@ -31,6 +31,19 @@ class MDProcessor {
 
     // Break information
     this.breakMatch = new RegExp(/ {2,}$/);
+
+    // Link + Image information
+    this.altMatch = new RegExp(/!?\[.+\]/);
+    this.descMatch = new RegExp(/\(.+\)/);
+
+    // Link information
+    this.linkMatch = new RegExp(/\[[\w\s"']+\]\([\w\s\/:\."']+\)/);
+
+    // Image information
+    this.imageMatch = new RegExp(/^!\[.+\]\(.+\)$/);
+
+    // Link Image information
+    this.linkImageMatch = new RegExp(/^\[!\[[\w\s"']+\]\([\w\s\/:\."']+\)\]\([\w\s\/:\."']+\)$/)
   };
 
   resetAllSpecialElements() {
@@ -54,6 +67,25 @@ class MDProcessor {
     return this;
   };
 
+  parseLinks(line) {
+    // Necessary to loop through with global flag
+    let linkMatchLoop = new RegExp(/\[[\w\s"']+\]\([\w\s\/:\."']+\)/g)
+    let match;
+    let links = [];
+    while (match = this.linkMatch.exec(line)) {
+      const link = match[0];
+      const altInfo = this.altMatch.exec(link)[0].replace(/(\[|\]|!\[)/g, '');
+      const descInfo = this.descMatch.exec(link)[0].replace(/(\(|\))/g, '').split(' ');
+      const href = descInfo[0];
+      const title = descInfo.slice(1).join(' ');
+      links.push({ href: href, text: altInfo, title: title });
+      const anchor = `<a!>${altInfo}<!a>`;
+      line = line.replace(this.linkMatch, anchor);
+    }
+
+    return { text: line, links: links };
+  };
+
   parseHeader(line) {
     const headerRegex = new RegExp('^#+');
     let headerLength = headerRegex.exec(line)[0].length;
@@ -61,18 +93,17 @@ class MDProcessor {
     if (headerLength > 6) {
       headerLength = 6;
     }
-    return { element: `h${headerLength}`, text: headerText };
+
+    return { element: `h${headerLength}`, ...this.parseLinks(headerText) };
   };
 
   parseParagraph(line) {
-    return { element: 'p', text: line };
+    return { element: 'p', ...this.parseLinks(line)};
   };
 
   parseImage(line) {
-    const altMatch = new RegExp(/!\[.+\]/);
-    const descMatch = new RegExp(/\(.+\)/);
-    const altInfo = altMatch.exec(line)[0].replace('![', '').replace(']', '');
-    const descInfo = descMatch.exec(line)[0].replace('(', '').replace(')', '').split(' ');
+    const altInfo = this.altMatch.exec(line)[0].replace('![', '').replace(']', '');
+    const descInfo = this.descMatch.exec(line)[0].replace('(', '').replace(')', '').split(' ');
     const imgSrc = descInfo[0];
     const titleInfo = descInfo.slice(1).join(' ');
     return { element: 'img', src: imgSrc, alt: altInfo, title: titleInfo };
@@ -80,11 +111,10 @@ class MDProcessor {
 
   parseTextElement(line) {
     const trimmed = line.trim();
-    const imageMatch = new RegExp(/^!\[.+\]\(.+\)$/);
 
     if (trimmed.startsWith('#')) {
       return this.parseHeader(trimmed);
-    } else if (imageMatch.exec(trimmed)) {
+    } else if (this.imageMatch.exec(trimmed)) {
       return this.parseImage(trimmed);
     } else {
       return this.parseParagraph(trimmed);
@@ -94,7 +124,7 @@ class MDProcessor {
   parseListItem(line) {
     const listMatch = new RegExp(/^([0-9]+\.|(-|\+|\*))/);
     const text = line.replace(listMatch, '').trim();
-    return { element: 'li', text };
+    return { element: 'li', ...this.parseLinks(text) };
   };
 
   parseList(line) {
@@ -296,7 +326,22 @@ class MDConverter {
   };
 
   setTextElements(element, item) {
-    element.innerText = item.text;
+    let innerText = item.text;
+    if (item.links) {
+      item.links.forEach((link) => {
+        const anchor = document.createElement('a');
+        const anchorRegex = new RegExp(`<a!>${link.text}<!a>`);
+        anchor.href = link.href;
+        anchor.innerText = link.text;
+        if (link.title) {
+          anchor.title = link.title;
+        }
+
+        innerText = innerText.replace(anchorRegex, anchor.outerHTML);
+      })
+    }
+
+    element.innerHTML = innerText;
   };
 
   setImageElements(element, item) {
