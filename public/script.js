@@ -44,6 +44,11 @@ class MDProcessor {
 
     // Link Image information
     this.linkImageMatch = new RegExp(/^\[!\[[\w\s"']+\]\([\w\s\/:\."']+\)\]\([\w\s\/:\."']+\)$/)
+
+    // Div elements
+    this.inDiv = false;
+    this.currentDiv;
+    this.divMatch = new RegExp(/^<<-[A-Za-z0-9]{3}$/)
   };
 
   resetAllSpecialElements() {
@@ -60,6 +65,7 @@ class MDProcessor {
     this.currentBlockquoteIndentLength = 0;
     this.currentSubQuote = 0;
     this.shouldAppendParagraph = false;
+
   };
 
   updateLines(lines) {
@@ -69,17 +75,17 @@ class MDProcessor {
 
   parseLinks(line) {
     // Necessary to loop through with global flag
-    let linkMatchLoop = new RegExp(/\[[\w\s"']+\]\([\w\s\/:\."']+\)/g)
-    let match;
-    let links = [];
+    var linkMatchLoop = new RegExp(/\[[\w\s"']+\]\([\w\s\/:\."']+\)/g)
+    var match;
+    var links = [];
     while (match = this.linkMatch.exec(line)) {
-      const link = match[0];
-      const altInfo = this.altMatch.exec(link)[0].replace(/(\[|\]|!\[)/g, '');
-      const descInfo = this.descMatch.exec(link)[0].replace(/(\(|\))/g, '').split(' ');
-      const href = descInfo[0];
-      const title = descInfo.slice(1).join(' ');
+      var link = match[0];
+      var altInfo = this.altMatch.exec(link)[0].replace(/(\[|\]|!\[)/g, '');
+      var descInfo = this.descMatch.exec(link)[0].replace(/(\(|\))/g, '').split(' ');
+      var href = descInfo[0];
+      var title = descInfo.slice(1).join(' ');
       links.push({ href: href, text: altInfo, title: title });
-      const anchor = `<a!>${altInfo}<!a>`;
+      var anchor = `<a!>${altInfo}<!a>`;
       line = line.replace(this.linkMatch, anchor);
     }
 
@@ -87,9 +93,9 @@ class MDProcessor {
   };
 
   parseHeader(line) {
-    const headerRegex = new RegExp('^#+');
-    let headerLength = headerRegex.exec(line)[0].length;
-    const headerText = line.substring(headerLength).trim();
+    var headerRegex = new RegExp('^#+');
+    var headerLength = headerRegex.exec(line)[0].length;
+    var headerText = line.substring(headerLength).trim();
     if (headerLength > 6) {
       headerLength = 6;
     }
@@ -102,15 +108,15 @@ class MDProcessor {
   };
 
   parseImage(line) {
-    const altInfo = this.altMatch.exec(line)[0].replace('![', '').replace(']', '');
-    const descInfo = this.descMatch.exec(line)[0].replace('(', '').replace(')', '').split(' ');
-    const imgSrc = descInfo[0];
-    const titleInfo = descInfo.slice(1).join(' ');
+    var altInfo = this.altMatch.exec(line)[0].replace('![', '').replace(']', '');
+    var descInfo = this.descMatch.exec(line)[0].replace('(', '').replace(')', '').split(' ');
+    var imgSrc = descInfo[0];
+    var titleInfo = descInfo.slice(1).join(' ');
     return { element: 'img', src: imgSrc, alt: altInfo, title: titleInfo };
   };
 
   parseTextElement(line) {
-    const trimmed = line.trim();
+    var trimmed = line.trim();
 
     if (trimmed.startsWith('#')) {
       return this.parseHeader(trimmed);
@@ -122,18 +128,18 @@ class MDProcessor {
   };
 
   parseListItem(line) {
-    const listMatch = new RegExp(/^([0-9]+\.|(-|\+|\*))/);
-    const text = line.replace(listMatch, '').trim();
+    var listMatch = new RegExp(/^([0-9]+\.|(-|\+|\*))/);
+    var text = line.replace(listMatch, '').trim();
     return { element: 'li', ...this.parseLinks(text) };
   };
 
   parseList(line) {
-    let nextListType = this.orderedMatch.exec(line.trim()) ? this.O_LIST : this.UO_LIST;
+    var nextListType = this.orderedMatch.exec(line.trim()) ? this.O_LIST : this.UO_LIST;
 
     if (line.startsWith('  ') && this.inList) {
       // We are attempting to create a sub list
-      let indents = 0;
-      const indentRegex = new RegExp(/  /g);
+      var indents = 0;
+      var indentRegex = new RegExp(/  /g);
 
       // Find how many indentations we have currently
       while (indentRegex.exec(line)) {
@@ -145,10 +151,10 @@ class MDProcessor {
         this.currentSubList += 1;
 
         // Hold access to current list for reference from child list
-        const parentList = this.currentList;
+        var parentList = this.currentList;
 
         // Get previously created element
-        const listItem = parentList.children[parentList.children.length - 1]
+        var listItem = parentList.children[parentList.children.length - 1]
         listItem.children = [];
 
         // Create a new list to append to sublist
@@ -162,7 +168,7 @@ class MDProcessor {
       } else if (this.currentListIndentLength > indents) {
         // TODO: Handle going back multiple lists
         this.currentSubList -= 1;
-        const childList = this.currentList;
+        var childList = this.currentList;
         this.currentList = childList.parentList;
       }
 
@@ -170,7 +176,7 @@ class MDProcessor {
       this.currentListIndentLength = indents;
     } else if (this.inList && this.currentSubList > 0) {
       // We have moved back to the base list, loop until root parent
-      let parentList = this.currentList.parentList;
+      var parentList = this.currentList.parentList;
       while (parentList.parentList) {
         parentList = parentList.parentList;
       }
@@ -186,7 +192,7 @@ class MDProcessor {
       this.currentList = nextListType === this.O_LIST ? this.getOrderedList() : this.getUnorderedList();
       this.currentListType = nextListType;
       this.inList = true;
-      this.elements.push(this.currentList);
+      this.addToElements(this.currentList);
       this.currentList.children.push(this.parseListItem(line.trim()));
     } else {
       this.currentList.children.push(this.parseListItem(line.trim()));
@@ -196,25 +202,25 @@ class MDProcessor {
   parseBlockquote(line) {
     // TODO: Assign quote indent to be able to properly indent with mismatched
     // blockquote lengths
-    const quoteRegex = new RegExp(/^>+/g);
-    let quoteIndent = quoteRegex.exec(line)[0].length;
+    var quoteRegex = new RegExp(/^>+/g);
+    var quoteIndent = quoteRegex.exec(line)[0].length;
 
     if (this.inBlockquote && this.currentBlockquoteIndentLength < quoteIndent) {
       // Create a new blockquote within the current one
-      const parentQuote = this.currentBlockquote;
+      var parentQuote = this.currentBlockquote;
       this.currentBlockquote = this.getBlockquote();
 
       parentQuote.children.push(this.currentBlockquote);
       this.currentBlockquote.parentQuote = parentQuote;
 
-      const paragraph = this.parseParagraph(line.replace(this.blockMatch, '').trim());
+      var paragraph = this.parseParagraph(line.replace(this.blockMatch, '').trim());
       this.currentBlockquote.children.push(paragraph);
 
       this.currentBlockquoteIndentLength = quoteIndent;
     } else if (this.inBlockquote && this.currentBlockquoteIndentLength > quoteIndent) {
       // Go back to a previous blockquote
-      let currentQuote = this.currentBlockquote;
-      let quoteDifference = this.currentBlockquoteIndentLength - quoteIndent;
+      var currentQuote = this.currentBlockquote;
+      var quoteDifference = this.currentBlockquoteIndentLength - quoteIndent;
       while (quoteDifference > 0) {
         if (!currentQuote.parentQuote) {
           // Difference was greater than number of steps back, set difference to 0
@@ -226,7 +232,7 @@ class MDProcessor {
 
       this.currentBlockquote = currentQuote;
 
-      const paragraph = this.parseParagraph(line.replace(this.blockMatch, '').trim());
+      var paragraph = this.parseParagraph(line.replace(this.blockMatch, '').trim());
       this.currentBlockquote.children.push(paragraph);
 
       this.currentBlockquoteIndentLength = quoteIndent;
@@ -243,25 +249,25 @@ class MDProcessor {
           this.shouldAppendParagraph = false;
 
           // Create a new paragraph and append to the current children
-          const paragraph = this.parseParagraph(line.replace(this.blockMatch, '').trim());
+          var paragraph = this.parseParagraph(line.replace(this.blockMatch, '').trim());
           this.currentBlockquote.children.push(paragraph);
         } else {
-          const paragraph = this.currentBlockquote.children[this.currentBlockquote.children.length - 1];
+          var paragraph = this.currentBlockquote.children[this.currentBlockquote.children.length - 1];
           paragraph.text = paragraph.text + ` ${line.replace(this.blockMatch, '').trim()}`;
         }
       }
     } else {
       // Create a blockquote element
-      const blockquote = this.getBlockquote();
+      var blockquote = this.getBlockquote();
 
       // Create the paragraph element
-      const paragraph = this.parseParagraph(line.replace(this.blockMatch, '').trim());
+      var paragraph = this.parseParagraph(line.replace(this.blockMatch, '').trim());
       blockquote.children.push(paragraph);
 
       this.inBlockquote = true;
       this.currentBlockquote = blockquote;
       this.currentBlockquoteIndentLength = quoteIndent;
-      this.elements.push(blockquote);
+      this.addToElements(blockquote);
     }
   };
 
@@ -278,21 +284,57 @@ class MDProcessor {
   };
 
   addHorizontalRule() {
-    this.elements.push({ element: 'hr' });
+    this.addToElements({ element: 'hr' });
+  };
+
+  addDiv(line) {
+    this.addToElements({ element: 'div', identifier: line.replace('<<-', ''), children: [] });
   };
 
   addBreak() {
-    this.elements.push({ element: 'br' });
+    this.addToElements({ element: 'br' });
+  };
+
+  addToElements(element) {
+    if (this.inDiv) {
+      // We currently have a div, check to see if it is being closed
+      if (element.element === 'div' && element.identifier === this.currentDiv.identifier) {
+        // We are in the div, closing
+        // If there is a parent div, set that to the current div
+        if (this.currentDiv.parentDiv) {
+          this.currentDiv = this.currentDiv.parentDiv;
+        } else {
+          // We don't have a parent div
+          this.currentDiv = null;
+          this.inDiv = false;
+        }
+      } else {
+        this.currentDiv.children.push(element);
+        if (element.element === 'div') {
+          element.parentDiv = this.currentDiv;
+          this.currentDiv = element;
+        }
+      }
+    } else {
+      this.elements.push(element);
+      if (element.element === 'div') {
+        this.inDiv = true;
+        this.currentDiv = element;
+      }
+    }
   };
 
   parse() {
     // Reset elements
     this.elements = [];
     this.resetAllSpecialElements();
+    this.inDiv = false;
 
     this.lines.forEach((line) => {
       if (this.horizontalMatch.exec(line.trim())) {
         this.addHorizontalRule();
+      } if (this.divMatch.exec(line.trim())) {
+        this.addDiv(line);
       } else if (this.listMatch.exec(line.trim())) {
         this.parseList(line);
       } else if (this.blockMatch.exec(line.trim())) {
@@ -301,7 +343,7 @@ class MDProcessor {
         // Else we are in a non-empty text element
         this.resetAllSpecialElements();
 
-        this.elements.push(this.parseTextElement(line));
+        this.addToElements(this.parseTextElement(line));
       } else {
         this.resetAllSpecialElements();
       }
@@ -309,7 +351,7 @@ class MDProcessor {
       if (this.breakMatch.exec(line)) {
         this.addBreak();
       }
-    })
+    });
 
     return this.elements;
   };
@@ -326,11 +368,11 @@ class MDConverter {
   };
 
   setTextElements(element, item) {
-    let innerText = item.text;
+    var innerText = item.text;
     if (item.links) {
       item.links.forEach((link) => {
-        const anchor = document.createElement('a');
-        const anchorRegex = new RegExp(`<a!>${link.text}<!a>`);
+        var anchor = document.createElement('a');
+        var anchorRegex = new RegExp(`<a!>${link.text}<!a>`);
         anchor.href = link.href;
         anchor.innerText = link.text;
         if (link.title) {
@@ -356,6 +398,7 @@ class MDConverter {
       case 'img':
         this.setImageElements(element, item);
         break;
+      case 'div':
       case 'blockquote':
       case 'ul':
       case 'ol':
@@ -387,16 +430,27 @@ var processor = new MDProcessor([]);
 var converter = new MDConverter([]);
 
 window.onload = function() {
-    var pad = document.getElementById('pad');
+    var content = document.getElementById('content');
+    var styles = document.getElementById('styles');
     var markdownArea = document.getElementById('markdown');
 
     var convertTextAreaToMarkdown = function() {
-        var markdownText = pad.value;
+        var markdownText = content.value;
         var data = processor.updateLines(markdownText.split('\n')).parse();
         html = converter.updateData(data).convert(markdownArea);
     }
 
-    pad.addEventListener('input', convertTextAreaToMarkdown);
+    var updateStyles = function () {
+      var style = document.createElement('style');
+      style.type = 'text/css';
+      style.innerText = styles.value;
+      var head = document.getElementsByTagName('head')[0]
+      head.lastElementChild.remove();
+      head.appendChild(style);
+    }
 
+    content.addEventListener('input', convertTextAreaToMarkdown);
+    styles.addEventListener('input', updateStyles);
     convertTextAreaToMarkdown();
+    updateStyles();
 };

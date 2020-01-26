@@ -4,10 +4,32 @@
     <title>Realtime Markdown Viewer</title>
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css" rel="stylesheet">
     <link href='style.css' rel='stylesheet'>
+    <!-- This style must stay at the bottom to be able to be overwritten successfully -->
+    <style>
+    </style>
   </head>
   <body class='container-fluid'>
     <section class='row'>
-      <textarea class='col-md-6 full-height' id='pad'>Write your text here...</textarea>
+      <div class='col-md-6 full-height'>
+        <div class='pad'>
+          <p class='description'>Write your content here</p>
+          <textarea id='content'>
+# A how to use this mark down
+Every # up to 6 adds a Header
+1. Write an ordered list using numbers
+  - You can make lists indented by using two spaces
+  - And use dashes or asterisks to create unordered lists
+Use [link text] and then (link and a title) to get images
+Use ~>>class1|class2 to add classes to an item
+Use #>>id to add ids to an item
+And then use the stylesheet below to add styles to these classes
+          </textarea>
+        </div>
+        <div class='pad'>
+          <p class='description'>Write your styles in this box</p>
+          <textarea id='styles'></textarea>
+        </div>
+      </div>
       <div class='col-md-6 full-height' id='markdown'></div>
     </section>
     <script src='script.js'></script>
