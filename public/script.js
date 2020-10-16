@@ -48,7 +48,7 @@ class MDProcessor {
     // Div elements
     this.inDiv = false;
     this.currentDiv;
-    this.divMatch = new RegExp(/^<<-[A-Za-z0-9]{3}$/)
+    this.divMatch = new RegExp(/^<<-[A-Za-z0-9]{3}/)
   };
 
   resetAllSpecialElements() {
